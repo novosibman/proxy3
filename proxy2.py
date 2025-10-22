@@ -5,8 +5,10 @@ import os
 import socket
 import ssl
 import select
-import httplib
-import urlparse
+#import httplib
+import http.client as httplib
+#import urlparse
+from urllib.parse import urlparse
 import threading
 import gzip
 import zlib
@@ -16,11 +18,15 @@ import re
 import argparse
 import traceback
 import xml.etree.ElementTree as ET
-from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
-from SocketServer import ThreadingMixIn
-from cStringIO import StringIO
+#from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, BaseHTTPRequestHandler
+#from SocketServer import ThreadingMixIn
+from socketserver import ThreadingMixIn
+#from cStringIO import StringIO
+from io import StringIO
 from subprocess import Popen, PIPE
-from HTMLParser import HTMLParser
+#from HTMLParser import HTMLParser
+from html.parser import HTMLParser
 from traceback import format_exc
 from binascii import hexlify
 
@@ -67,11 +73,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if os.path.isfile(self.cakey) and os.path.isfile(self.cacert) and os.path.isfile(self.certkey) and os.path.isdir(self.certdir):
             self.connect_intercept()
         else:
-            print with_color(31, '''Relaying proxy traffic rather than intercepting it.
+            print (with_color(31, '''Relaying proxy traffic rather than intercepting it.
 *** THIS IS PROBABLY NOT WHAT YOU WANT!! ***
 You need to create the CA certificate files to allow this proxy to
 act as a man-in-the-middle (MITM) to intercept and decode HTTPS
-traffic. Run ./setup_https_intercept.sh and restart proxy.''')
+traffic. Run ./setup_https_intercept.sh and restart proxy.'''))
             self.connect_relay()
 
     def connect_intercept(self):
@@ -108,7 +114,7 @@ traffic. Run ./setup_https_intercept.sh and restart proxy.''')
             s = socket.create_connection(address, timeout=self.timeout)
         except Exception as e:
             self.send_error(502)
-            print with_color(7, with_color(31, '== Caught exception ==\n%s' % traceback.format_exc()))
+            print (with_color(7, with_color(31, '== Caught exception ==\n%s' % traceback.format_exc())))
             return
         self.send_response(200, 'Connection Established')
         self.end_headers()
@@ -133,7 +139,7 @@ traffic. Run ./setup_https_intercept.sh and restart proxy.''')
             s = socket.create_connection(self.address, timeout=self.timeout)
         except Exception as e:
             self.send_error(502)
-            print with_color(7, with_color(31, '== Caught exception ==\n%s' % traceback.format_exc()))
+            print (with_color(7, with_color(31, '== Caught exception ==\n%s' % traceback.format_exc())))
             return
 
         cert_args = {}
@@ -234,7 +240,7 @@ traffic. Run ./setup_https_intercept.sh and restart proxy.''')
             if origin in self.tls.conns:
                 del self.tls.conns[origin]
             self.send_error(502)
-            print with_color(7, with_color(31, '== Caught exception ==\n%s' % traceback.format_exc()))
+            print (with_color(7, with_color(31, '== Caught exception ==\n%s' % traceback.format_exc())))
             return
 
         version_table = {10: 'HTTP/1.0', 11: 'HTTP/1.1'}
@@ -331,22 +337,22 @@ traffic. Run ./setup_https_intercept.sh and restart proxy.''')
         req_header_text = "%s %s %s\n%s" % (req.command, req.path, req.request_version, req.headers)
         res_header_text = "%s %d %s\n%s" % (res.response_version, res.status, res.reason, res.headers)
 
-        print with_color(33, req_header_text)
+        print (with_color(33, req_header_text))
 
         u = urlparse.urlsplit(req.path)
         if u.query:
             query_text = parse_qsl(u.query)
-            print with_color(32, "==== QUERY PARAMETERS ====\n%s\n" % query_text)
+            print (with_color(32, "==== QUERY PARAMETERS ====\n%s\n" % query_text))
 
         cookie = req.headers.get('Cookie', '')
         if cookie:
             cookie = parse_qsl(re.sub(r';\s*', '&', cookie))
-            print with_color(32, "==== COOKIE ====\n%s\n" % cookie)
+            print (with_color(32, "==== COOKIE ====\n%s\n" % cookie))
 
         auth = req.headers.get('Authorization', '')
         if auth.lower().startswith('basic'):
             token = auth.split()[1].decode('base64')
-            print with_color(31, "==== BASIC AUTH ====\n%s\n" % token)
+            print (with_color(31, "==== BASIC AUTH ====\n%s\n" % token))
 
         if req_body is not None:
             req_body_text = None
@@ -369,14 +375,14 @@ traffic. Run ./setup_https_intercept.sh and restart proxy.''')
                 req_body_text = req_body
 
             if req_body_text:
-                print with_color(32, "==== REQUEST BODY ====\n%s\n" % req_body_text)
+                print (with_color(32, "==== REQUEST BODY ====\n%s\n" % req_body_text))
 
-        print with_color(36, res_header_text)
+        print (with_color(36, res_header_text))
 
         cookies = res.headers.getheaders('Set-Cookie')
         if cookies:
             cookies = '\n'.join(cookies)
-            print with_color(31, "==== SET-COOKIE ====\n%s\n" % cookies)
+            print (with_color(31, "==== SET-COOKIE ====\n%s\n" % cookies))
 
         if res_body is not None:
             res_body_text = None
@@ -397,14 +403,14 @@ traffic. Run ./setup_https_intercept.sh and restart proxy.''')
                 m = re.search(r'<title[^>]*>\s*([^<]+?)\s*</title>', res_body, re.I)
                 if m:
                     h = HTMLParser()
-                    print with_color(32, "==== HTML TITLE ====\n%s\n" % h.unescape(m.group(1).decode('utf-8')))
+                    print (with_color(32, "==== HTML TITLE ====\n%s\n" % h.unescape(m.group(1).decode('utf-8'))))
             elif content_type.startswith('text/') and len(res_body) < 1024:
                 res_body_text = res_body
             elif content_type.startswith('application/xml') and len(res_body) < 65536:
                 res_body_text = res_body
 
             if res_body_text:
-                print with_color(32, "==== RESPONSE BODY ====\n%s\n" % res_body_text)
+                print (with_color(32, "==== RESPONSE BODY ====\n%s\n" % res_body_text))
 
     def request_handler(self, req, req_body):
         pass
@@ -443,7 +449,7 @@ def test(HandlerClass=ProxyRequestHandler, ServerClass=ThreadingHTTPServer, prot
     httpd = ServerClass(server_address, HandlerClass)
 
     sa = httpd.socket.getsockname()
-    print "Serving HTTP Proxy on", sa[0], "port", sa[1], "..."
+    print ("Serving HTTP Proxy on", sa[0], "port", sa[1], "...")
     httpd.serve_forever()
 
 
